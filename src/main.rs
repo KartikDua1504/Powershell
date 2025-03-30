@@ -1,25 +1,32 @@
-#[allow(unused_imports)]
 use std::io::{self, Write};
 fn main() {
-    let mut stdout = io::stdout();
     let stdin = io::stdin();
+    let mut stdout = io::stdout();
     let mut input = String::new();
     loop {
         print!("$ ");
         stdout.flush().unwrap();
+
         if stdin.read_line(&mut input).is_err() {
-            break; 
+            break;
         }
         let trimmed = input.trim();
+        input.clear();
+
         if trimmed.is_empty() {
-            input.clear();
             continue;
         }
-        match input.trim(){
-            "exit 0" =>break,
-            input if input.starts_with("echo ") =>println!("{}", &input[5..]),
-            _ => println!("{}: command not found", trimmed)
-        };
-        input.clear();
+        match trimmed.split_once(' ') {
+            Some((command, args)) => match command {
+                "exit" if args == "0" => break,
+                "echo" => println!("{}", args),
+                "type" => match args {
+                    "echo" | "exit" | "type" => println!("{} is a shell builtin", args),
+                    _ => println!("{}: not found", args),
+                },
+                _ => println!("{}: command not found", trimmed),
+            },
+            None => println!("{}: command not found", trimmed),
+        }
     }
 }
