@@ -44,19 +44,20 @@ fn main() {
                 }
             }
             [cmd, args @ ..] => {
-                if let Some(path) = find_executable_in_path(cmd) {
-                    let status = process::Command::new(path)
+                // Check if command exists in PATH
+                if find_executable_in_path(cmd).is_some() {
+                    // Execute using command name instead of full path
+                    match process::Command::new(cmd)
                         .args(args)
-                        .spawn()
-                        .and_then(|mut child| child.wait());
-
-                    match status {
-                        Ok(exit_status) => {
-                            if !exit_status.success() {
-                                eprintln!("{} exited with status {}", cmd, exit_status);
-                            }
+                        .output() 
+                    {
+                        Ok(output) => {
+                            io::stdout().write_all(&output.stdout).unwrap();
+                            io::stderr().write_all(&output.stderr).unwrap();
                         }
-                        Err(err) => eprintln!("Failed to execute {}: {}", cmd, err),
+                        Err(e) => {
+                            eprintln!("Failed to execute {}: {}", cmd, e);
+                        }
                     }
                 } else {
                     println!("{}: command not found", cmd);
