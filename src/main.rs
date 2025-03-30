@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use std::io::{self, Write};
 fn main() {
     let stdin = io::stdin();
@@ -6,13 +7,11 @@ fn main() {
     loop {
         print!("$ ");
         stdout.flush().unwrap();
-
         if stdin.read_line(&mut input).is_err() {
             break;
         }
-        let trimmed = input.trim();
-        input.clear();
-
+        let trimmed = input.trim().to_owned();
+        input.clear(); 
         if trimmed.is_empty() {
             continue;
         }
