@@ -15,10 +15,11 @@ fn main() {
             input.clear();
             continue;
         }
-        if trimmed == "exit 0" {
-            break;
-        }
-        println!("{}: command not found", trimmed);
+        match input.trim(){
+            "exit 0" =>break,
+            input if input.starts_with("echo ") =>println!("{}", &input[5..]),
+            _ => println!("{}: command not found", trimmed)
+        };
         input.clear();
     }
 }
