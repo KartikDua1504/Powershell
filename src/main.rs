@@ -16,7 +16,8 @@ fn main() {
             break;
         }
 
-        let trimmed = input.trim();
+        // Trim and clone the string to avoid borrowing issues
+        let trimmed = input.trim().to_owned(); 
         input.clear();
 
         if trimmed.is_empty() {
