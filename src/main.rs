@@ -10,11 +10,15 @@ fn main() {
         if stdin.read_line(&mut input).is_err() {
             break; 
         }
-        let input_trimmed = input.trim_end(); 
-        if input_trimmed.is_empty() {
-            continue; 
+        let trimmed = input.trim();
+        if trimmed.is_empty() {
+            input.clear();
+            continue;
         }
-        println!("{}: command not found", input_trimmed);
+        if trimmed == "exit 0" {
+            break;
+        }
+        println!("{}: command not found", trimmed);
         input.clear();
     }
 }
