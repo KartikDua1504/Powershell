@@ -1,66 +1,142 @@
-use std::env;
-use std::io::{self, Write};
-#[allow(unused_imports)]
-use std::process::Command;
-const BUILTINS: [&str; 3] = ["exit", "echo", "type"];
-fn path(command: &str) -> Option<String> {
-    let path = std::env::var("PATH").unwrap();
-    for dir in path.split(':') {
-        for item in std::fs::read_dir(dir).unwrap() {
-            let entry = item.unwrap();
-            let name = entry.file_name();
-            if name == command {
-                return Some(entry.path().into_os_string().into_string().unwrap());
-            }
-        }
-    }
-    None
-}
-fn execute(command: &str, args: &[String]) {
-    let command_path = path(command);
-    if command_path.is_none() {
-        println!("{command}: not found");
-        return;
-    }
-    let output = Command::new(command)
-        .args(args)
-        .output()
-        .expect("failed to execute process");
-    io::stdout().write_all(&output.stdout).unwrap();
-}
+use std::{
+    io::{self, Write},
+    process,
+};
+
+use command::CommandParser;
+use shell::Shell;
+use termion::{
+    clear,
+    cursor::{self, DetectCursorPos},
+    event::Key,
+    input::TermRead,
+    raw::IntoRawMode,
+};
+use trie::{build_trie, longest_common_prefix, Trie};
+
+pub mod command;
+pub mod shell;
+pub mod trie;
+
 fn main() {
+    let trie = build_trie();
+
     loop {
-        print!("$ ");
-        io::stdout().flush().unwrap();
-        // Wait for user input
-        let stdin = io::stdin();
-        let mut input = String::new();
-        stdin.read_line(&mut input).unwrap();
-        // Handle missing commands
-        let args = input
-            .split_whitespace()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
-        if args.is_empty() {
-            println!();
-            continue;
-        }
-        let command = &args[0];
-        let arg_string = &args[1..].join(" ");
-        match &command[..] {
-            "type" => {
-                if BUILTINS.iter().any(|&b| b == arg_string) {
-                    println!("{arg_string} is a shell builtin");
-                } else if let Some(path) = path(arg_string) {
-                    println!("{arg_string} is {path}")
-                } else {
-                    println!("{arg_string}: not found");
+        let mut stdout = io::stdout();
+        write!(stdout, "{}{}$ ", cursor::Left(1000), clear::CurrentLine).unwrap();
+        stdout.flush().unwrap();
+
+        let input = handle_input(&trie);
+
+        let command = CommandParser::new(input).parse_command();
+        let mut shell = Shell::new();
+        shell.execute(command);
+    }
+}
+
+// clean up line reset
+pub fn handle_input(trie: &Trie) -> String {
+    let mut stdout = io::stdout().into_raw_mode().unwrap();
+    let mut input: Vec<char> = Vec::new();
+    let mut bell_rung = false;
+
+    for key in io::stdin().keys() {
+        match key.unwrap() {
+            Key::Ctrl('c') => {
+                stdout.suspend_raw_mode().unwrap();
+                process::exit(0)
+            }
+            Key::Backspace => {
+                let cursor_position = stdout.cursor_pos().unwrap();
+                if cursor_position.0 == 3 {
+                    continue;
+                }
+
+                write!(stdout, "{}{}", cursor::Left(1), clear::AfterCursor).unwrap();
+                stdout.flush().unwrap();
+                input.pop().unwrap();
+            }
+
+            Key::Char('\t') => {
+                if input.is_empty() {
+                    continue;
+                }
+
+                let prefix = input.iter().collect::<String>();
+                let mut suggestions = trie.search(&prefix);
+                suggestions.sort();
+                let mut lcp = longest_common_prefix(&suggestions);
+                if lcp.len() > input.len() {
+                    if suggestions.len() == 1 {
+                        lcp.push(' ');
+                    }
+
+                    write!(
+                        stdout,
+                        "{}{}$ {}",
+                        clear::CurrentLine,
+                        cursor::Left(input.len() as u16 + 2),
+                        lcp
+                    )
+                    .unwrap();
+                    input = lcp.chars().collect();
+                    stdout.flush().unwrap();
+                    continue;
+                }
+
+                match suggestions.len() {
+                    0 => {
+                        write!(stdout, "\x07").unwrap();
+                        stdout.flush().unwrap();
+                        continue;
+                    }
+                    1 => {
+                        write!(
+                            stdout,
+                            "{}{}$ {} ",
+                            clear::CurrentLine,
+                            cursor::Left(input.len() as u16 + 2),
+                            suggestions[0]
+                        )
+                        .unwrap();
+                        input = suggestions[0].chars().collect();
+                        input.push(' ');
+                        stdout.flush().unwrap();
+                    }
+                    _ => {
+                        if bell_rung {
+                            bell_rung = false;
+                            write!(
+                                stdout,
+                                "\r\n{}\r\n$ {}",
+                                suggestions.join("  "),
+                                input.iter().collect::<String>()
+                            )
+                            .unwrap();
+                            stdout.flush().unwrap();
+                            continue;
+                        }
+
+                        bell_rung = true;
+                        write!(stdout, "\x07").unwrap();
+                        stdout.flush().unwrap();
+                        continue;
+                    }
                 }
             }
-            "echo" => println!("{arg_string}"),
-            "exit" => break,
-            "pwd" => println!("{}", env::current_dir().unwrap().display()),
-            _ => execute(command, &args[1..]),
+            Key::Char('\n') => {
+                write!(stdout, "\r\n").unwrap();
+                break;
+            }
+            Key::Char(c) => {
+                write!(stdout, "{}", c).unwrap();
+                stdout.flush().unwrap();
+                input.push(c);
+            }
+            _ => {}
         }
+        stdout.flush().unwrap();
     }
+
+    input.iter().collect()
 }
