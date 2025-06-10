@@ -1,12 +1,12 @@
 [package]
-name = "codecrafters-shell"
+name = "kartik_dua-shell"
 version = "0.1.0"
-authors = ["Codecrafters <hello@codecrafters.io>"]
+authors = ["Kartik Dua"]
 edition = "2021"
 rust-version = "1.80"
 
 [dependencies]
 anyhow = "1.0.68"                                # error handling
 bytes = "1.3.0"                                  # helps manage buffers
-termion = "4.0.3"
+termion = "4.0.3"                          
 thiserror = "1.0.38"                             # error handling

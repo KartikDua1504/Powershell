@@ -1,35 +1,107 @@
-[![progress-banner](https://backend.codecrafters.io/progress/shell/5a4f8955-e037-4d5c-a9c9-ff7267a08414)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
+# Rust‑Powered Shell (`rspwsh`)
 
-This is a starting point for Rust solutions to the
-["Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview).
+A lightning‑fast, object‑aware command‑line shell written from scratch in **Rust**.
+This README corresponds to the repository **[`KartikDua1504/Powershell`](https://github.com/KartikDua1504/Powershell)**.
 
-In this challenge, you'll build your own POSIX compliant shell that's capable of
-interpreting shell commands, running external programs and builtin commands like
-cd, pwd, echo and more. Along the way, you'll learn about shell command parsing,
-REPLs, builtin commands, and more.
+---
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+## 1 · Quick Install
 
-# Passing the first stage
+```bash
+# prerequisite: Rust ≥ 1.77 (install with rustup if missing)
 
-The entry point for your `shell` implementation is in `src/main.rs`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
+# clone *this* repo
+ git clone https://github.com/KartikDua1504/Powershell.git
+ cd Powershell
 
-```sh
-git commit -am "pass 1st stage" # any msg
-git push origin master
+# build an optimised release binary
+ cargo build --release        # ≈ 20 s on a recent laptop
+
+# (optional) move it onto $PATH so you can call it from anywhere
+ sudo mv target/release/rspwsh /usr/local/bin
+
+# launch an interactive session
+ rspwsh
 ```
 
-Time to move on to the next stage!
+Run a one‑shot command and exit:
 
-# Stage 2 & beyond
+```bash
+rspwsh -c "echo 'hello world'"
+```
 
-Note: This section is for stages 2 and beyond.
+---
 
-1. Ensure you have `cargo (1.85)` installed locally
-1. Run `./your_program.sh` to run your program, which is implemented in
-   `src/main.rs`. This command compiles your Rust project, so it might be slow
-   the first time you run it. Subsequent runs will be fast.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+## 2 · Everyday Usage
+
+| Task                   | Example                    |                     |
+| ---------------------- | -------------------------- | ------------------- |
+| Change directory       | `cd ~/projects`            |                     |
+| Install a package      | `sudo dnf install ripgrep` |                     |
+| List only large files  | \`ls                       | where size > 10MB\` |
+| Search command history | `history -p make`          |                     |
+| Exit the shell         | `exit` or **Ctrl+D**       |                     |
+
+**Shortcuts** – Tab = autocomplete · Ctrl+R = reverse search · Ctrl+C = cancel · Ctrl+L = clear.
+
+---
+
+## 3 · How It Works (Bird’s‑Eye View)
+
+```
++-----------+           +-------------------+
+| main.rs   |──► input │  command::parser  │  ➜ AST
++-----------+           +-------------------+
+                                │
+                                ▼
+                        +-------------------+
+                        │  shell::exec      │  built‑in? spawn?
+                        +-------------------+
+                                │
+                                ▼
+                        +-------------------+
+                        │ trie::autocomplete│  Tab suggestions
+                        +-------------------+
+```
+
+* **Zero unsafe code** – memory safety throughout.
+* **termion** – raw‑mode terminal handling and key events.
+* **serde** – stream JSON/CSV as rich objects between commands.
+* **anyhow / thiserror** – ergonomic error propagation.
+
+---
+
+## 4 · Extending `rspwsh`
+
+Adding a built‑in command is a two‑step affair:
+
+```rust
+struct Greet;
+impl BuiltIn for Greet {
+    fn name(&self) -> &'static str { "greet" }
+    fn execute(&self, args: &[String]) -> Result<i32, ShellError> {
+        println!("Hello, {}!", args.get(0).unwrap_or(&"world".into()));
+        Ok(0)
+    }
+}
+```
+
+Register it in `shell/mod.rs`:
+
+```rust
+builtins.insert("greet", Box::new(Greet));
+```
+
+Re‑compile (`cargo build --release`) and the command is live—complete with autocomplete and `help` support.
+
+---
+
+## 5 · Troubleshooting
+
+| Symptom                       | Remedy                                                          |
+| ----------------------------- | --------------------------------------------------------------- |
+| Binary won’t execute          | Build directly on the target machine or use correct `--target`. |
+| Prompt lacks colour           | Ensure `$TERM` supports ANSI (e.g. `xterm-256color`).           |
+| Slow autocomplete (first run) | Trie builds once; subsequent sessions are instant.              |
+
+---
